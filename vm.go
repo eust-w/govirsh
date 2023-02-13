@@ -2,6 +2,7 @@ package govirsh
 
 import (
 	"errors"
+	"fmt"
 	"github.com/libvirt/libvirt-go"
 	"os"
 	"strings"
@@ -46,11 +47,28 @@ func (v *Vm) buildGovirtNet() error {
 	}
 	govirt, err := netList.GetNetListByName(v.libvirtNet)
 	if err != nil {
-		data := "<network>\n    <name>govirt</name>\n    <uuid>98361b46-1581-acb7-1643-85a412626e70</uuid>\n    <forward dev='govirt' mode='nat'>\n        <nat>\n            <port start='1024' end='65535'/>\n        </nat>\n        <interface dev='govirt'/>\n    </forward>\n    <bridge name='govirt' stp='off' delay='0'/>\n    <mac address='52:54:00:b9:e7:1e'/>\n    <ip address='192.168.100.1' netmask='255.255.255.0'>\n        <dhcp>\n            <range start='192.168.100.128' end='192.168.100.254'/>\n        </dhcp>\n    </ip>\n</network>"
+		data := "<network>\n    <name>govirt</name>\n    <uuid>98361b46-1581-acb7-1643-85a412626e70</uuid>\n    <forward mode='open'/>\n    <bridge name='govirt' stp='off' delay='0'/>\n    <mac address='52:54:00:b9:e7:1e'/>/home/longtao/workspace/projects/govirsh\n    <ip address='192.168.100.1' netmask='255.255.255.0'>\n        <dhcp>\n            <range start='192.168.100.128' end='192.168.100.254'/>\n        </dhcp>\n    </ip>\n</network>"
 		govirt, err = AddLibvirtNet(data)
+		_ = openIpForward()
+		_ = setIptables()
 	}
 	v.govirtNet = NewVirtNet(govirt)
 	return nil
+}
+
+func openIpForward() error {
+	cmdArgs := fmt.Sprintf("sudo echo %s >/proc/sys/net/ipv4/ip_forward", "1")
+	_, err := outputStringCmd(cmdArgs)
+	if err != nil {
+		return err
+	}
+	_, err = outputStringCmd("sudo sysctl -p")
+	return err
+}
+func setIptables() error {
+	cmd := "sudo  iptables -t nat -C POSTROUTING -s 192.168.100.0/24 -j MASQUERADE||iptables -t nat -A POSTROUTING -s 192.168.100.0/24 -j MASQUERADE -w 10"
+	_, err := outputStringCmd(cmd)
+	return err
 }
 
 func (v *Vm) SetIp(ip string) {
